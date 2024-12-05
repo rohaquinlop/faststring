@@ -99,11 +99,9 @@ static PyObject *MString_clear(MString *self) {
 }
 
 static int MString_resize(MString *self, size_t new_capacity) {
-    char *new_buffer =
-        (char *)realloc(self->buffer, new_capacity * sizeof(char));
-    if (!new_buffer) return -1;
+    self->buffer = (char *)realloc(self->buffer, new_capacity * sizeof(char));
+    if (!self->buffer) return -1;
 
-    self->buffer = new_buffer;
     self->capacity = new_capacity;
     return 0;
 }
@@ -329,23 +327,31 @@ static PyObject *MString_add(MString *self, PyObject *other) {
         return NULL;
     }
 
-    MString *new_sb = PyObject_New(MString, &MStringType);
-    if (!new_sb) return PyErr_NoMemory();
+    MString *new_ms = PyObject_New(MString, &MStringType);
+    if (!new_ms) return PyErr_NoMemory();
 
-    new_sb->size = self->size + str_len;
-    new_sb->capacity = new_sb->size + 1;
-    new_sb->buffer = (char *)malloc(new_sb->capacity * sizeof(char));
-    if (!new_sb->buffer) {
+    new_ms->size = self->size + str_len;
+    new_ms->capacity = self->capacity;
+    new_ms->buffer = (char *)malloc(new_ms->capacity * sizeof(char));
+    if (!new_ms->buffer) {
         PyErr_NoMemory();
-        Py_DECREF(new_sb);
+        Py_DECREF(new_ms);
         return NULL;
     }
 
-    memcpy(new_sb->buffer, self->buffer, self->size);
-    memcpy(new_sb->buffer + self->size, str, str_len);
-    new_sb->buffer[new_sb->size] = '\0';
+    if (new_ms->size + 1 > new_ms->capacity) {
+        size_t new_capacity = new_ms->capacity * 2;
+        while (new_capacity < new_ms->size + 1) {
+            new_capacity *= 2;
+        }
+        if (MString_resize(new_ms, new_capacity) < 0) return NULL;
+    }
 
-    return (PyObject *)new_sb;
+    memcpy(new_ms->buffer, self->buffer, self->size);
+    memcpy(new_ms->buffer + self->size, str, str_len);
+    new_ms->buffer[new_ms->size] = '\0';
+
+    return (PyObject *)new_ms;
 }
 
 static PyObject *MString_inplace_add(MString *self, PyObject *other) {
@@ -383,9 +389,91 @@ static PyObject *MString_inplace_add(MString *self, PyObject *other) {
     return (PyObject *)self;
 }
 
+static PyObject *MString_nb_multiply(MString *self, PyObject *value) {
+    if (!PyLong_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "Argument must be an integer.");
+        return NULL;
+    }
+
+    long int n = PyLong_AsLong(value);
+    if (n < 0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "Argument must be a positive integer.");
+        return NULL;
+    }
+
+    MString *new_ms = PyObject_New(MString, &MStringType);
+    if (!new_ms) return PyErr_NoMemory();
+
+    new_ms->size = self->size * n;
+    new_ms->capacity = self->capacity;
+    new_ms->buffer = (char *)malloc(new_ms->capacity * sizeof(char));
+    if (!new_ms->buffer) {
+        PyErr_NoMemory();
+        Py_DECREF(new_ms);
+        return NULL;
+    }
+
+    if (new_ms->size + 1 > new_ms->capacity) {
+        size_t new_capacity = new_ms->capacity * 2;
+        while (new_capacity < new_ms->size + 1) {
+            new_capacity *= 2;
+        }
+        if (MString_resize(new_ms, new_capacity) < 0) {
+            PyErr_SetString(PyExc_MemoryError, "Memory allocation failed.");
+            Py_DECREF(new_ms);
+            return NULL;
+        }
+    }
+
+    for (Py_ssize_t i = 0; i < n; i++) {
+        memcpy(new_ms->buffer + (i * self->size), self->buffer, self->size);
+    }
+    new_ms->buffer[new_ms->size] = '\0';
+
+    return (PyObject *)new_ms;
+}
+
+static PyObject *MString_inplace_multiply(MString *self, PyObject *value) {
+    if (!PyLong_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "Argument must be an integer.");
+        return NULL;
+    }
+
+    long int n = PyLong_AsLong(value);
+    if (n < 0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "Argument must be a positive integer.");
+        return NULL;
+    }
+
+    size_t new_size = self->size * n;
+    if (new_size + 1 > self->capacity) {
+        size_t new_capacity = self->capacity * 2;
+        while (new_capacity < new_size + 1) {
+            new_capacity *= 2;
+        }
+        if (MString_resize(self, new_capacity) < 0) {
+            PyErr_SetString(PyExc_MemoryError, "Memory allocation failed.");
+            return NULL;
+        }
+    }
+
+    for (Py_ssize_t i = 0; i < n; i++) {
+        memcpy(self->buffer + (i * self->size), self->buffer, self->size);
+    }
+    self->size = new_size;
+    self->buffer[self->size] = '\0';
+
+    Py_INCREF(self);
+    return (PyObject *)self;
+}
+
 PyNumberMethods MString_as_number = {
     .nb_add = (binaryfunc)MString_add,
     .nb_inplace_add = (binaryfunc)MString_inplace_add,
+    .nb_multiply = (binaryfunc)MString_nb_multiply,
+    .nb_inplace_multiply = (binaryfunc)MString_inplace_multiply,
 };
 
 static PyMethodDef faststringMethods[] = {{NULL, NULL, 0, NULL}};

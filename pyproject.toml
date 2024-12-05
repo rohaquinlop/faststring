@@ -10,9 +10,6 @@ dynamic = [
     "license",
     "requires-python",
 ]
-dependencies = [
-    "pytest-benchmark[histogram]>=5.1.0",
-]
 
 [project.urls]
 "Homepage" = "https://github.com/rohaquinlop/faststring"
@@ -21,3 +18,6 @@ dependencies = [
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+reinstall-package = ["faststring"]
