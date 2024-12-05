@@ -15,6 +15,92 @@ static void StringBuilder_dealloc(StringBuilder *self) {
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
+static Py_ssize_t StringBuilder_length(StringBuilder *self) {
+    return self->size;
+}
+
+static PyObject *StringBuilder_to_string(StringBuilder *self) {
+    return PyUnicode_FromString(self->buffer);
+}
+
+static PyObject *StringBuilder_getitem(StringBuilder *self, Py_ssize_t index) {
+    if (index < 0 || (size_t)index >= self->size) {
+        PyErr_SetString(PyExc_IndexError, "Index out of range");
+        return NULL;
+    }
+
+    return PyUnicode_FromStringAndSize(self->buffer + index, 1);
+}
+
+static int StringBuilder_contains(StringBuilder *self, PyObject *value) {
+    if (!PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "value must be a string");
+        return -1;
+    }
+
+    const char *str = PyUnicode_AsUTF8(value);
+    if (!str) return -1;
+
+    if (strstr(self->buffer, str)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static PyObject *StringBuilder_iter(StringBuilder *self) {
+    return PySeqIter_New((PyObject *)self);
+}
+
+static PyObject *StringBuilder_repr(StringBuilder *self) {
+    return PyUnicode_FromFormat("<StringBuilder: %s>", self->buffer);
+}
+
+static PyObject *StringBuilder_find(StringBuilder *self, PyObject *args) {
+    const char *str;
+    long long int idx = -1;
+    if (!PyArg_ParseTuple(args, "s", &str)) return NULL;
+
+    char *found = strstr(self->buffer, str);
+    if (found != NULL) {
+        idx = found - self->buffer;
+    }
+
+    return PyLong_FromLong(idx);
+}
+
+static int StringBuilder_setitem(StringBuilder *self, Py_ssize_t index,
+                                 PyObject *value) {
+    if (index < 0 || (size_t)index >= self->size) {
+        PyErr_SetString(PyExc_IndexError, "Index out of range");
+        return -1;
+    }
+
+    if (!PyUnicode_Check(value) || PyUnicode_GetLength(value) != 1) {
+        PyErr_SetString(PyExc_TypeError,
+                        "Value must be a single character string");
+        return -1;
+    }
+
+    const char *char_value = PyUnicode_AsUTF8(value);
+    if (!char_value) return -1;
+
+    self->buffer[index] = char_value[0];
+    return 0;
+}
+
+static PyObject *StringBuilder_clear(StringBuilder *self) {
+    self->size = 0;
+    free(self->buffer);
+
+    self->buffer = (char *)malloc(1 * sizeof(char));
+    if (!self->buffer) return NULL;
+
+    self->buffer[0] = '\0';
+
+    Py_RETURN_NONE;
+}
+
 static int StringBuilder_resize(StringBuilder *self, size_t new_capacity) {
     char *new_buffer =
         (char *)realloc(self->buffer, new_capacity * sizeof(char));
@@ -45,78 +131,57 @@ static PyObject *StringBuilder_append(StringBuilder *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
-static int StringBuilder_setitem(StringBuilder *self, Py_ssize_t index,
-                                 PyObject *value) {
-    if (index < 0 || (size_t)index >= self->size) {
-        PyErr_SetString(PyExc_IndexError, "Index out of range");
-        return -1;
-    }
-
-    if (!PyUnicode_Check(value) || PyUnicode_GetLength(value) != 1) {
-        PyErr_SetString(PyExc_TypeError,
-                        "Value must be a single character string");
-        return -1;
-    }
-
-    const char *char_value = PyUnicode_AsUTF8(value);
-    if (!char_value) return -1;
-
-    self->buffer[index] = char_value[0];
-    return 0;
-}
-
-static Py_ssize_t StringBuilder_length(StringBuilder *self) {
-    return self->size;
-}
-
-static PyObject *StringBuilder_to_string(StringBuilder *self) {
-    return PyUnicode_FromString(self->buffer);
-}
-
-static PyObject *StringBuilder_find(StringBuilder *self, PyObject *args) {
+static PyObject *StringBuilder_insert(StringBuilder *self, PyObject *args) {
+    Py_ssize_t index;
     const char *str;
-    long long int idx = -1;
-    if (!PyArg_ParseTuple(args, "s", &str)) return NULL;
 
-    char *found = strstr(self->buffer, str);
-    if (found != NULL) {
-        idx = found - self->buffer;
+    if (!PyArg_ParseTuple(args, "ns", &index, &str)) {
+        return NULL;
     }
 
-    return PyLong_FromLong(idx);
-}
+    if (index < 0 || (size_t)index > self->size) {
+        PyErr_SetString(PyExc_IndexError, "index out of range");
+        return NULL;
+    }
 
-static PyObject *StringBuilder_clear(StringBuilder *self) {
-    self->size = 0;
-    free(self->buffer);
+    size_t str_len = strlen(str);
+    if (self->size + str_len + 1 > self->capacity) {
+        size_t new_capacity = self->capacity * 2;
+        while (new_capacity < self->size + str_len + 1) {
+            new_capacity *= 2;
+        }
+        if (StringBuilder_resize(self, new_capacity) < 0) {
+            return NULL;
+        }
+    }
 
-    self->buffer = (char *)malloc(1 * sizeof(char));
-    if (!self->buffer) return NULL;
-
-    self->buffer[0] = '\0';
+    memmove(self->buffer + index + str_len, self->buffer + index,
+            self->size - index + 1);
+    memcpy(self->buffer + index, str, str_len);
+    self->size += str_len;
 
     Py_RETURN_NONE;
 }
 
 static PyMethodDef StringBuilderMethods[] = {
     {"append", (PyCFunction)StringBuilder_append, METH_VARARGS,
-
      "Append a string."},
     {"to_string", (PyCFunction)StringBuilder_to_string, METH_NOARGS,
-
      "Get the concatenated string."},
     {"find", (PyCFunction)StringBuilder_find, METH_VARARGS,
-
      "Return the index of the first occurrence of the substring."},
     {"clear", (PyCFunction)StringBuilder_clear, METH_NOARGS,
-
      "Clear the buffer."},
+    {"insert", (PyCFunction)StringBuilder_insert, METH_VARARGS,
+     "Insert a string at the specified index."},
     {NULL},
 };
 
 static PySequenceMethods StringBuilder_as_sequence = {
     .sq_length = (lenfunc)StringBuilder_length,
+    .sq_item = (ssizeargfunc)StringBuilder_getitem,
     .sq_ass_item = (ssizeobjargproc)StringBuilder_setitem,
+    .sq_contains = (objobjproc)StringBuilder_contains,
 };
 
 static int StringBuilder_init(StringBuilder *self, PyObject *args,
@@ -164,6 +229,8 @@ static PyTypeObject StringBuilderType = {
     .tp_as_number = &StringBuilder_as_number,
     .tp_as_sequence = &StringBuilder_as_sequence,
     .tp_str = (reprfunc)StringBuilder_to_string,
+    .tp_repr = (reprfunc)StringBuilder_repr,
+    .tp_iter = (getiterfunc)StringBuilder_iter,
 };
 
 static PyObject *StringBuilder_add(StringBuilder *self, PyObject *other) {
