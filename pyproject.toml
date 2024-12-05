@@ -1,9 +1,23 @@
 [project]
 name = "faststring"
-version = "0.1.0"
-description = "Add your description here"
+description = "Python library for mutable string manipulation."
 readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "pytest-benchmark>=5.1.0",
+dynamic = [
+    "authors",
+    "classifiers",
+    "optional-dependencies",
+    "version",
+    "license",
+    "requires-python",
 ]
+dependencies = [
+    "pytest-benchmark[histogram]>=5.1.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/rohaquinlop/faststring"
+
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
