@@ -67,6 +67,26 @@ static PyObject *MString_find(MString *self, PyObject *args) {
     return PyLong_FromLong(idx);
 }
 
+static PyObject *MString_reverse(MString *self) {
+    if (self->size == 0) {
+        Py_RETURN_NONE;
+    }
+
+    size_t start = 0, end = self->size - 1;
+    char temp;
+
+    while (start < end) {
+        temp = self->buffer[start];
+        self->buffer[start] = self->buffer[end];
+        self->buffer[end] = temp;
+
+        start++;
+        end--;
+    }
+
+    Py_RETURN_NONE;
+}
+
 static int MString_setitem(MString *self, Py_ssize_t index, PyObject *value) {
     if (index < 0 || (size_t)index >= self->size) {
         PyErr_SetString(PyExc_IndexError, "Index out of range");
@@ -158,6 +178,69 @@ static PyObject *MString_insert(MString *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
+static PyObject *MString_replace(MString *self, PyObject *args) {
+    const char *old_str, *new_str;
+    if (!PyArg_ParseTuple(args, "ss", &old_str, &new_str)) return NULL;
+
+    size_t old_len = strlen(old_str);
+    size_t new_len = strlen(new_str);
+
+    if (old_len == 0) {
+        PyErr_SetString(PyExc_ValueError, "old_str must not be empty");
+        return NULL;
+    }
+
+    size_t count = 0;
+    char *found = self->buffer;
+    while ((found = strstr(found, old_str)) != NULL) {
+        count++;
+        found += old_len;
+    }
+
+    if (count == 0) {
+        Py_RETURN_NONE;
+    }
+
+    size_t new_size = self->size + count * (new_len - old_len);
+    if (new_size + 1 > self->capacity) {
+        size_t new_capacity = self->capacity * 2;
+        while (new_capacity < new_size + 1) {
+            new_capacity *= 2;
+        }
+        if (MString_resize(self, new_capacity) < 0) return NULL;
+    }
+
+    char *old_buffer = self->buffer;
+    self->buffer = (char *)malloc(self->capacity * sizeof(char));
+    if (!self->buffer) {
+        free(old_buffer);
+        return PyErr_NoMemory();
+    }
+
+    char *write_ptr = self->buffer;
+    char *read_ptr = old_buffer;
+    char *found_ptr = old_buffer;
+
+    while ((found_ptr = strstr(read_ptr, old_str)) != NULL) {
+        size_t len = found_ptr - read_ptr;
+        memcpy(write_ptr, read_ptr, len);
+        write_ptr += len;
+        memcpy(write_ptr, new_str, new_len);
+        write_ptr += new_len;
+        read_ptr = found_ptr + old_len;
+    }
+
+    size_t len = self->size - (read_ptr - old_buffer);
+    memcpy(write_ptr, read_ptr, len);
+    write_ptr += len;
+    *write_ptr = '\0';
+
+    free(old_buffer);
+    self->size = new_size;
+
+    Py_RETURN_NONE;
+}
+
 static PyObject *MString_subscript(MString *self, PyObject *key) {
     if (PyIndex_Check(key)) {
         Py_ssize_t index = PyNumber_AsSsize_t(key, PyExc_IndexError);
@@ -243,6 +326,10 @@ static PyMethodDef MStringMethods[] = {
     {"clear", (PyCFunction)MString_clear, METH_NOARGS, "Clear the buffer."},
     {"insert", (PyCFunction)MString_insert, METH_VARARGS,
      "Insert a string at the specified index."},
+    {"reverse", (PyCFunction)MString_reverse, METH_NOARGS,
+     "Reverse the string."},
+    {"replace", (PyCFunction)MString_replace, METH_VARARGS,
+     "Replace occurences of a substring."},
     {NULL},
 };
 

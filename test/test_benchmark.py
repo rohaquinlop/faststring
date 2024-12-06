@@ -216,3 +216,25 @@ def test_nativestring_list_insert(benchmark):
             string = "".join(string)
 
     benchmark(f)
+
+
+@pytest.mark.benchmark(group="multiply")
+def test_mstring_multiply(benchmark):
+    def f():
+        sb = MString(
+            "Neque porro quisquam est qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit..."
+        )
+        for _ in range(NUM_ITERATIONS // 10**4):
+            sb *= 2
+
+    benchmark(f)
+
+
+@pytest.mark.benchmark(group="multiply")
+def test_nativestring_multiply(benchmark):
+    def f():
+        string = "Neque porro quisquam est qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit..."
+        for _ in range(NUM_ITERATIONS // 10**4):
+            string *= 2
+
+    benchmark(f)

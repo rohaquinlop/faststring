@@ -11,6 +11,7 @@
 - **Contains Check**: Quickly check if a substring is present.
 - **Find Substrings**: Locate substrings within the string.
 - **Clear Strings**: Reset the string content efficiently.
+- **Multiplication**: Multiply the string by an integer using the `*` operator.
 
 ## Installation
 
@@ -32,6 +33,9 @@ s = MString("Hello, ")
 
 # Append a string
 s += "world!"
+
+# Or use the append method
+s.append(" How are you?")
 
 # Modify a character at a specific index
 s[7] = "W"
@@ -61,6 +65,20 @@ print(len(s))  # Output: 0
 
 # You can also convert the MString object to a regular string
 s = s.to_string()
+
+ms = MString("Hello")
+
+# Multiply the string by an integer
+ms *= 3
+print(ms)  # Output: HelloHelloHello
+
+# Reverse the string
+ms.reverse()
+print(ms)  # Output: olleHolleHolleH
+
+# Replace a substring with another string
+ms.replace("olleH", "Hi")
+print(ms)  # Output: HiHiHi
 ```
 
 ## Mutable Strings
@@ -73,4 +91,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-If you have any questions or suggestions, feel free to reach out to me at [rohaquinlop301@gmail.com](mailto:rohaquinlop301@gmail.com) or on [LinkedIn](https://www.linkedin.com/in/robin-hafid/).
+If you have any questions or suggestions, feel free to reach out to me at [rohaquinlop301@gmail.com](mailto:rohaquinlop301@gmail.com) or [LinkedIn](https://www.linkedin.com/in/robin-hafid/).
